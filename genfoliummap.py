@@ -15,7 +15,7 @@ area_ids = [
 ]
 
 ####################################################################################################
-# .geojson files from mapit.mysociety.org
+# Setup stuff
 ####################################################################################################
 # File directory where the GeoJSON files are saved ex: area_967667.geojson
 geo_data_dir = "geojson_files"
@@ -25,7 +25,37 @@ indygov_data_dir = "indygov_data"
 import folium
 import geopandas as gpd
 import json
+from folium.plugins import FeatureGroupSubGroup
+from shapely.geometry import shape
 
+# Function to calculate the centroid of a feature for placing the label
+def get_centroid(geojson_feature):
+    geometry = shape(geojson_feature)
+    return geometry.centroid.coords[0]
+
+# def add_labels_geojson(feature_group, geojson_data, label_field):
+#     for feature in geojson_data['features']:
+#         geometry = shape(feature['geometry'])
+#         label_text = feature['properties'][label_field]
+#         label_location = list(geometry.centroid.coords)[0]
+#         folium.map.Marker(
+#             label_location,
+#             icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+#         ).add_to(feature_group)
+
+# # Function to add labels from a GeoDataFrame
+# def add_labels_gdf(feature_group, gdf, label_field):
+#     for _, row in gdf.iterrows():
+#         label_text = row[label_field]
+#         label_location = list(row['geometry'].centroid.coords)[0]
+#         folium.Marker(
+#             location=label_location,
+#             icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+#         ).add_to(feature_group)
+
+####################################################################################################
+# .geojson files from mapit.mysociety.org
+####################################################################################################
 # Load the GeoJSON for the main Indianapolis area
 with open(os.path.join(geo_data_dir, f'area_{indianapolis_area_id}.geojson'), 'r') as file:
     indianapolis_geojson = json.load(file)
@@ -46,15 +76,10 @@ gdf = gpd.read_file(shapefile_path)
 # Display the first few rows of the GeoDataFrame to understand its structure
 gdf.head()
 
-from folium.plugins import FeatureGroupSubGroup
-
 # Create main feature groups for MapIt and IndyGov data
-mapit_data_group = folium.FeatureGroup(name='MapIt Data')
-indygov_data_group = folium.FeatureGroup(name='IndyGov Data')
-
-# Add the main groups to the map
-indianapolis_map.add_child(mapit_data_group)
-indianapolis_map.add_child(indygov_data_group)
+mapit_data_group = folium.FeatureGroup(name='MapIt Data', show=True).add_to(indianapolis_map)
+indygov_data_group = folium.FeatureGroup(name='IndyGov Data', show=True).add_to(indianapolis_map)
+#indygov_labels_group = folium.FeatureGroup(name='IndyGov - Labels', show=True).add_to(indianapolis_map)
 
 # Add GeoJSON data to sub-groups of the MapIt Data group
 for area_id in area_ids:
@@ -62,21 +87,36 @@ for area_id in area_ids:
     with open(file_path, 'r') as file:
         area_geojson = json.load(file)
     area_name = area_geojson['features'][0]['properties']['name']
-    sub_group = FeatureGroupSubGroup(mapit_data_group, name=area_name)
+    sub_group = FeatureGroupSubGroup(mapit_data_group, name="MapIt - " + area_name)
     folium.GeoJson(area_geojson, tooltip=area_name).add_to(sub_group)
-    mapit_data_group.add_child(sub_group)  # Add the subgroup to the parent group
+    sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
+
+    # # Add labels for MapIt Data
+    # mapit_labels_group = folium.FeatureGroup(name='MapIt Labels', show=True).add_to(indianapolis_map)
+    # add_labels_geojson(mapit_labels_group, area_geojson, 'name')
 
 # Add Shapefile data to sub-groups of the IndyGov Data group
 for _, row in gdf.iterrows():
-    sub_group = FeatureGroupSubGroup(indygov_data_group, name=row['NAME'])
-    folium.GeoJson(row['geometry'], tooltip=row['NAME']).add_to(sub_group)
-    indygov_data_group.add_child(sub_group)  # Add the subgroup to the parent group
+    area_name = row['NAME']
+    sub_group = FeatureGroupSubGroup(indygov_data_group, name="IndyGov - " + area_name)
+    folium.GeoJson(row['geometry'], tooltip=area_name).add_to(sub_group)
+    sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
+
+# # Add labels for IndyGov Data
+# for _, row in gdf.iterrows():
+#     area_name = row['NAME']
+#     sub_group = FeatureGroupSubGroup(indygov_data_group, name="IndyGov - " + area_name)
+#     folium.GeoJson(row['geometry'], tooltip=area_name).add_to(sub_group)
+#     sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
+
+# # Call the modified add_labels function for the IndyGov labels
+# add_labels_gdf(indygov_labels_group, gdf, 'NAME')
 
 # Add a LayerControl to toggle the groups
 folium.LayerControl(collapsed=False).add_to(indianapolis_map)
 
 # Save the map to an HTML file
-html_file_path = os.path.join(map_data_dir, 'indianapolis_map.html')
+html_file_path = os.path.join('index.html')
 indianapolis_map.save(html_file_path)
 
-print(f"Map has been saved to {html_file_path}")
+print(f"Map with toggleable labels has been saved to {html_file_path}")
