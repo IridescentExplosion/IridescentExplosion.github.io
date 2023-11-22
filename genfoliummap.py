@@ -113,7 +113,7 @@ for _, row in gdf.iterrows():
     ).add_to(indygov_labels_group)
 
 # Add a LayerControl to toggle the groups
-folium.LayerControl(collapsed=False).add_to(indianapolis_map)
+folium.LayerControl(collapsed=True).add_to(indianapolis_map)
 
 # Save the map to an HTML file
 html_file_path = os.path.join('index.html')
