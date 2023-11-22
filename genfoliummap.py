@@ -29,29 +29,30 @@ from folium.plugins import FeatureGroupSubGroup
 from shapely.geometry import shape
 
 # Function to calculate the centroid of a feature for placing the label
-def get_centroid(geojson_feature):
-    geometry = shape(geojson_feature)
-    return geometry.centroid.coords[0]
+def get_centroid(geometry):
+    # Ensure that the centroid coordinates are in (latitude, longitude) order
+    centroid = geometry.centroid
+    return (centroid.y, centroid.x)
 
-# def add_labels_geojson(feature_group, geojson_data, label_field):
-#     for feature in geojson_data['features']:
-#         geometry = shape(feature['geometry'])
-#         label_text = feature['properties'][label_field]
-#         label_location = list(geometry.centroid.coords)[0]
-#         folium.map.Marker(
-#             label_location,
-#             icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
-#         ).add_to(feature_group)
+def add_labels_geojson(feature_group, geojson_data, label_field):
+    for feature in geojson_data['features']:
+        geometry = shape(feature['geometry'])
+        label_text = feature['properties'][label_field]
+        label_location = list(geometry.centroid.coords)[0]
+        folium.map.Marker(
+            label_location,
+            icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+        ).add_to(feature_group)
 
-# # Function to add labels from a GeoDataFrame
-# def add_labels_gdf(feature_group, gdf, label_field):
-#     for _, row in gdf.iterrows():
-#         label_text = row[label_field]
-#         label_location = list(row['geometry'].centroid.coords)[0]
-#         folium.Marker(
-#             location=label_location,
-#             icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
-#         ).add_to(feature_group)
+# Function to add labels from a GeoDataFrame
+def add_labels_gdf(feature_group, gdf, label_field):
+    for _, row in gdf.iterrows():
+        label_text = row[label_field]
+        label_location = list(row['geometry'].centroid.coords)[0]
+        folium.Marker(
+            location=label_location,
+            icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+        ).add_to(feature_group)
 
 ####################################################################################################
 # .geojson files from mapit.mysociety.org
@@ -76,10 +77,11 @@ gdf = gpd.read_file(shapefile_path)
 # Display the first few rows of the GeoDataFrame to understand its structure
 gdf.head()
 
-# Create main feature groups for MapIt and IndyGov data
+# Create main feature groups for MapIt and IndyGov data, including labels
 mapit_data_group = folium.FeatureGroup(name='MapIt Data', show=True).add_to(indianapolis_map)
+mapit_labels_group = folium.FeatureGroup(name='MapIt - Labels', show=False).add_to(indianapolis_map)
 indygov_data_group = folium.FeatureGroup(name='IndyGov Data', show=True).add_to(indianapolis_map)
-#indygov_labels_group = folium.FeatureGroup(name='IndyGov - Labels', show=True).add_to(indianapolis_map)
+indygov_labels_group = folium.FeatureGroup(name='IndyGov - Labels', show=False).add_to(indianapolis_map)
 
 # Add GeoJSON data to sub-groups of the MapIt Data group
 for area_id in area_ids:
@@ -91,9 +93,14 @@ for area_id in area_ids:
     folium.GeoJson(area_geojson, tooltip=area_name).add_to(sub_group)
     sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
 
-    # # Add labels for MapIt Data
-    # mapit_labels_group = folium.FeatureGroup(name='MapIt Labels', show=True).add_to(indianapolis_map)
-    # add_labels_geojson(mapit_labels_group, area_geojson, 'name')
+    # Assuming 'area_geojson' is a GeoJSON FeatureCollection
+    for feature in area_geojson['features']:
+        centroid = get_centroid(shape(feature['geometry']))
+        label_text = feature['properties']['name']
+        folium.Marker(
+            location=centroid,
+            icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+        ).add_to(mapit_labels_group)
 
 # Add Shapefile data to sub-groups of the IndyGov Data group
 for _, row in gdf.iterrows():
@@ -102,15 +109,14 @@ for _, row in gdf.iterrows():
     folium.GeoJson(row['geometry'], tooltip=area_name).add_to(sub_group)
     sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
 
-# # Add labels for IndyGov Data
-# for _, row in gdf.iterrows():
-#     area_name = row['NAME']
-#     sub_group = FeatureGroupSubGroup(indygov_data_group, name="IndyGov - " + area_name)
-#     folium.GeoJson(row['geometry'], tooltip=area_name).add_to(sub_group)
-#     sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
-
-# # Call the modified add_labels function for the IndyGov labels
-# add_labels_gdf(indygov_labels_group, gdf, 'NAME')
+# Add labels for IndyGov Data
+for _, row in gdf.iterrows():
+    centroid = get_centroid(row['geometry'])
+    label_text = row['NAME']
+    folium.Marker(
+        location=centroid,
+        icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+    ).add_to(indygov_labels_group)
 
 # Add a LayerControl to toggle the groups
 folium.LayerControl(collapsed=False).add_to(indianapolis_map)
