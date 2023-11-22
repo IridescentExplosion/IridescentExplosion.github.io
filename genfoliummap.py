@@ -1,9 +1,6 @@
 import requests
 import os
 
-# List of area IDs for Indianapolis / Marion County
-indianapolis_area_id = 967667
-
 # Areas covered (within) Indianapolis / Marion County
 area_ids = [
     1359173, 1359118, 56944, 1359187, 1359119, 1359180, 1359169, 713147, 1359120, 56662,
@@ -57,9 +54,6 @@ def add_labels_gdf(feature_group, gdf, label_field):
 ####################################################################################################
 # .geojson files from mapit.mysociety.org
 ####################################################################################################
-# Load the GeoJSON for the main Indianapolis area
-with open(os.path.join(geo_data_dir, f'area_{indianapolis_area_id}.geojson'), 'r') as file:
-    indianapolis_geojson = json.load(file)
 
 # Create a map centered at the centroid of Indianapolis
 indianapolis_map = folium.Map(location=[39.7684, -86.1581], zoom_start=11)
