@@ -2,11 +2,11 @@ import requests
 import os
 
 # Areas covered (within) Indianapolis / Marion County
-area_ids = [
+mapit_area_ids = [
     1359173, 1359118, 56944, 1359187, 1359119, 1359180, 1359169, 713147, 1359120, 56662,
     1359186, 1359133, 1359131, 1359116, 1359123, 1359125, 1359140, 1359127, 1359185, 1359128,
     1359172, 1359184, 1359129, 56666, 1359134, 1359138, 1001390, 1359162, 1359139, 1359130,
-    828783, 1359143, 1359146, 1306360, 1359170, 1359179, 56663, 1359153, 1359160, 1359161,
+    828783, 1359143, 1359146, 1359170, 1359179, 56663, 1359153, 1359160, 1359161,
     1359163, 1359165, 1359181, 1359171, 1359182, 1359183, 713148, 262829, 1359178, 1001475,
     1359166, 828782, 1359176, 1359167, 1001476, 1359168, 1359175, 1359174, 262832, 1359177, 56668
 ]
@@ -72,29 +72,10 @@ gdf = gpd.read_file(shapefile_path)
 gdf.head()
 
 # Create main feature groups for MapIt and IndyGov data, including labels
-mapit_data_group = folium.FeatureGroup(name='MapIt Data', show=True).add_to(indianapolis_map)
-mapit_labels_group = folium.FeatureGroup(name='MapIt - Labels', show=False).add_to(indianapolis_map)
 indygov_data_group = folium.FeatureGroup(name='IndyGov Data', show=True).add_to(indianapolis_map)
 indygov_labels_group = folium.FeatureGroup(name='IndyGov - Labels', show=False).add_to(indianapolis_map)
-
-# Add GeoJSON data to sub-groups of the MapIt Data group
-for area_id in area_ids:
-    file_path = os.path.join(geo_data_dir, f'area_{area_id}.geojson')
-    with open(file_path, 'r') as file:
-        area_geojson = json.load(file)
-    area_name = area_geojson['features'][0]['properties']['name']
-    sub_group = FeatureGroupSubGroup(mapit_data_group, name="MapIt - " + area_name)
-    folium.GeoJson(area_geojson, tooltip=area_name).add_to(sub_group)
-    sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
-
-    # Assuming 'area_geojson' is a GeoJSON FeatureCollection
-    for feature in area_geojson['features']:
-        centroid = get_centroid(shape(feature['geometry']))
-        label_text = feature['properties']['name']
-        folium.Marker(
-            location=centroid,
-            icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
-        ).add_to(mapit_labels_group)
+mapit_data_group = folium.FeatureGroup(name='MapIt Data', show=True).add_to(indianapolis_map)
+mapit_labels_group = folium.FeatureGroup(name='MapIt - Labels', show=False).add_to(indianapolis_map)
 
 # Add Shapefile data to sub-groups of the IndyGov Data group
 for _, row in gdf.iterrows():
@@ -111,6 +92,25 @@ for _, row in gdf.iterrows():
         location=centroid,
         icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
     ).add_to(indygov_labels_group)
+
+# Add GeoJSON data to sub-groups of the MapIt Data group
+for area_id in mapit_area_ids:
+    file_path = os.path.join(geo_data_dir, f'area_{area_id}.geojson')
+    with open(file_path, 'r') as file:
+        area_geojson = json.load(file)
+    area_name = area_geojson['features'][0]['properties']['name']
+    sub_group = FeatureGroupSubGroup(mapit_data_group, name="MapIt - " + area_name)
+    folium.GeoJson(area_geojson, tooltip=area_name).add_to(sub_group)
+    sub_group.add_to(indianapolis_map)  # Add the subgroup to the map
+
+    # Assuming 'area_geojson' is a GeoJSON FeatureCollection
+    for feature in area_geojson['features']:
+        centroid = get_centroid(shape(feature['geometry']))
+        label_text = feature['properties']['name']
+        folium.Marker(
+            location=centroid,
+            icon=folium.DivIcon(html=f'<div style="font-size: 12pt">{label_text}</div>')
+        ).add_to(mapit_labels_group)
 
 # Add a LayerControl to toggle the groups
 folium.LayerControl(collapsed=True).add_to(indianapolis_map)
