@@ -14,9 +14,13 @@ area_ids = [
     1359166, 828782, 1359176, 1359167, 1001476, 1359168, 1359175, 1359174, 262832, 1359177, 56668
 ]
 
+####################################################################################################
+# .geojson files from mapit.mysociety.org
+####################################################################################################
 # File directory where the GeoJSON files are saved ex: area_967667.geojson
 geo_data_dir = "geojson_files"
 map_data_dir = "maps"
+indygov_data_dir = "indygov_data"
 
 import folium
 import geopandas as gpd
@@ -29,29 +33,47 @@ with open(os.path.join(geo_data_dir, f'area_{indianapolis_area_id}.geojson'), 'r
 # Create a map centered at the centroid of Indianapolis
 indianapolis_map = folium.Map(location=[39.7684, -86.1581], zoom_start=11)
 
-# Add the main Indianapolis area to the map
-folium.GeoJson(indianapolis_geojson, name="Indianapolis").add_to(indianapolis_map)
+####################################################################################################
+# KML shapefile data from Indy.gov. You can download the GIS data yourself: https://data.indy.gov/datasets/IndyGIS::indy-neighborhoods/about
+####################################################################################################
 
-# Iterate over area IDs and add each as a sub-region to the map
+# Path to the Shapefile
+shapefile_path = os.path.join(indygov_data_dir, 'Indy_Neighborhoods.shp')
+
+# Read the Shapefile
+gdf = gpd.read_file(shapefile_path)
+
+# Display the first few rows of the GeoDataFrame to understand its structure
+gdf.head()
+
+from folium.plugins import FeatureGroupSubGroup
+
+# Create main feature groups for MapIt and IndyGov data
+mapit_data_group = folium.FeatureGroup(name='MapIt Data')
+indygov_data_group = folium.FeatureGroup(name='IndyGov Data')
+
+# Add the main groups to the map
+indianapolis_map.add_child(mapit_data_group)
+indianapolis_map.add_child(indygov_data_group)
+
+# Add GeoJSON data to sub-groups of the MapIt Data group
 for area_id in area_ids:
     file_path = os.path.join(geo_data_dir, f'area_{area_id}.geojson')
-
-    # Load GeoJSON file
     with open(file_path, 'r') as file:
         area_geojson = json.load(file)
-
-    # Extract the name from the GeoJSON properties
     area_name = area_geojson['features'][0]['properties']['name']
+    sub_group = FeatureGroupSubGroup(mapit_data_group, name=area_name)
+    folium.GeoJson(area_geojson, tooltip=area_name).add_to(sub_group)
+    mapit_data_group.add_child(sub_group)  # Add the subgroup to the parent group
 
-    # Add GeoJSON to map with the correct tooltip
-    folium.GeoJson(
-        area_geojson,
-        name=area_name + " (" + str(area_id) + ")",  # Use area name for layer name
-        tooltip=area_name  # Use area name for tooltip
-    ).add_to(indianapolis_map)
+# Add Shapefile data to sub-groups of the IndyGov Data group
+for _, row in gdf.iterrows():
+    sub_group = FeatureGroupSubGroup(indygov_data_group, name=row['NAME'])
+    folium.GeoJson(row['geometry'], tooltip=row['NAME']).add_to(sub_group)
+    indygov_data_group.add_child(sub_group)  # Add the subgroup to the parent group
 
-# Add a layer control panel to the map
-folium.LayerControl().add_to(indianapolis_map)
+# Add a LayerControl to toggle the groups
+folium.LayerControl(collapsed=False).add_to(indianapolis_map)
 
 # Save the map to an HTML file
 html_file_path = os.path.join(map_data_dir, 'indianapolis_map.html')
