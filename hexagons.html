@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexagon Tessellation</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="hexCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('hexCanvas');
+        const ctx = canvas.getContext('2d');
+        let isDragging = false;
+        let dragStartPoint = null;
+
+        let hoveredVertexIndex = null;
+        const hoverRadius = 20; // Radius to detect hover near a vertex
+        let hexSize = 40; // Size of the hexagon
+
+        // Grid layout
+        let gridRows = 16; // Number of rows in the grid
+        let gridCols = 10; // Number of columns in the grid
+
+        // The horizontal distance between hexagons in the same row (width of a hexagon)
+        const horizontalSpacing = hexSize * 2;
+
+        // Calculate the starting position for the grid, adjusting for the grid size
+        let startX = -hexSize * 4;
+        let startY = -hexSize * 4;
+
+        // Assume blueHexRow and blueHexCol are set to define the position of the blue hexagon
+        let blueHexRow = Math.floor(gridRows / 2) - 2;
+        let blueHexCol = Math.floor(gridCols / 2);
+        let blueHexDeltas = [
+            { x: 0, y: 0 },
+            { x: 0, y: 0 },
+            { x: 0, y: 0 },
+            { x: 0, y: 0 },
+            { x: 0, y: 0 },
+            { x: 0, y: 0 },
+        ];
+        let blueHexVertices = getHexagonVerticesFromRowCol(blueHexRow, blueHexCol);
+
+
+        // Function to get vertices of a hexagon at a specific row and col
+        function getHexagonVerticesFromRowCol(row, col) {
+            // The full height of a hexagon
+            const hexHeight = Math.sqrt(3) * hexSize;
+            // The additional width needed for horizontal tessellation
+            const hexAdditionalWidth = hexSize * 2;
+
+            // Calculate the x and y position for the top-left vertex of each hexagon
+            let offsetX = startX + col * (hexSize + hexAdditionalWidth);
+            let offsetY = startY + row * hexHeight * 0.5;
+
+            // Offset for even rows
+            if (row % 2 === 0) {
+                offsetX -= hexSize * (3 / 2); // Shift to the left by half the side length
+            }
+
+            // Transform vertices based on the master hexagon
+            return getHexagonVertices(offsetX, offsetY, hexSize);
+        }
+
+        function renderHexGrid() {
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    drawHexagon(getHexagonVerticesFromRowCol(row, col));
+                }
+            }
+        }
+
+        // Note: You need to adjust startX and startY to ensure the grid fits within the canvas.
+
+
+
+        function isNearPoint(x, y, targetX, targetY, radius) {
+            const dx = x - targetX;
+            const dy = y - targetY;
+            return dx * dx + dy * dy <= radius * radius;
+        }
+
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gridRows = Math.ceil(canvas.height / (hexSize * Math.sqrt(3) / 2)) + 16;
+            gridCols = Math.ceil(canvas.width / (hexSize * 3)) + 4;
+            blueHexRow = Math.floor(gridRows / 2) - 2;
+            blueHexCol = Math.floor(gridCols / 2);
+            console.log(gridRows, gridCols)
+            blueHexVertices = getHexagonVerticesFromRowCol(blueHexRow, blueHexCol);
+        }
+
+        window.addEventListener('resize', resizeCanvas, false);
+        resizeCanvas();
+
+        function getHexagonVertices(x, y, size) {
+            let vertices = [];
+            for (let i = 0; i < 6; i++) {
+                vertices.push({
+                    x: x + size * Math.cos(i * 2 * Math.PI / 6) + blueHexDeltas[i].x,
+                    y: y + size * Math.sin(i * 2 * Math.PI / 6) + blueHexDeltas[i].y
+                });
+            }
+            return vertices;
+        }
+
+        function drawHexagon(vertices, fillColor = 'red', strokeColor = 'black') {
+            ctx.beginPath();
+            vertices.forEach((vertex, index) => {
+                ctx.lineTo(vertex.x, vertex.y);
+            });
+            ctx.closePath();
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.strokeStyle = strokeColor;
+            ctx.stroke();
+        }
+
+        function drawHoverCircle(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = 'tan';
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.stroke();
+        }
+
+        function isPointInHexagon(point, hexCenter, size) {
+            // A simplified check for the central hexagon could be a bounding box check for example
+            // This assumes the point has already been transformed into the coordinate space of the hexagon
+            const dx = Math.abs(point.x - hexCenter.x);
+            const dy = Math.abs(point.y - hexCenter.y);
+            return dx < size * 1.5 && dy < size * Math.sqrt(3) / 2;
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const mousePos = getMousePos(canvas, e);
+            if (hoveredVertexIndex !== null) { // Only start dragging if we're actually near a vertex
+                isDragging = true;
+                dragStartPoint = { x: mousePos.x, y: mousePos.y };
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // This function will check against all vertices of the central hexagon
+        // to see if the mouse is close enough to render the hover circle
+        function checkHover(mousePos) {
+            let isNearAnyVertex = false;
+            blueHexVertices.forEach((vertex, index) => {
+                if (isNearPoint(mousePos.x, mousePos.y, vertex.x, vertex.y, hoverRadius)) {
+                    hoveredVertexIndex = index;
+                    isNearAnyVertex = true;
+                    return;
+                }
+            });
+            return isNearAnyVertex;
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            const mousePos = getMousePos(canvas, e);
+            const blueVertices = getHexagonVerticesFromRowCol(blueHexRow, blueHexCol);
+
+            if (!isDragging) {
+                if (!checkHover(mousePos)) {
+                    hoveredVertexIndex = null; // No vertex is close enough to the mouse
+                }
+            }
+
+
+            if (hoveredVertexIndex !== null && isDragging) {
+                const mousePos = getMousePos(canvas, e);
+                const deltaX = mousePos.x - dragStartPoint.x;
+                const deltaY = mousePos.y - dragStartPoint.y;
+
+                // Apply the delta to the selected vertex
+                blueHexVertices[hoveredVertexIndex].x += deltaX;
+                blueHexVertices[hoveredVertexIndex].y += deltaY;
+                blueHexDeltas[hoveredVertexIndex].x += deltaX;
+                blueHexDeltas[hoveredVertexIndex].y += deltaY;
+
+                // Apply the same transformation to the adjacent vertices
+                const adjacentIndex1 = (hoveredVertexIndex + 4) % 6; // Previous vertex in the array
+                blueHexVertices[adjacentIndex1].x += deltaX;
+                blueHexVertices[adjacentIndex1].y += deltaY;
+                blueHexDeltas[adjacentIndex1].x += deltaX;
+                blueHexDeltas[adjacentIndex1].y += deltaY;
+
+                const adjacentIndex2 = (hoveredVertexIndex + 2) % 6; // Next vertex in the array
+                blueHexVertices[adjacentIndex2].x += deltaX;
+                blueHexVertices[adjacentIndex2].y += deltaY;
+                blueHexDeltas[adjacentIndex2].x += deltaX;
+                blueHexDeltas[adjacentIndex2].y += deltaY;
+
+                // Update the dragStartPoint for the next frame
+                dragStartPoint = { x: mousePos.x, y: mousePos.y };
+
+                // Request a re-render of the canvas
+                //render();
+            }
+        });
+
+        function render() {
+            // Render the hex grid
+            renderHexGrid();
+
+            // Render the blue hexagon
+            drawHexagon(blueHexVertices, 'red', 'white'); // This will draw the central hexagon
+
+            // Draw hover circle on the central hexagon if needed
+            if (hoveredVertexIndex !== null) {
+                const vertex = blueHexVertices[hoveredVertexIndex];
+                drawHoverCircle(vertex.x, vertex.y);
+            }
+
+            // draw hover circles over all vertices
+            blueHexVertices.forEach(vertex => {
+                //drawHoverCircle(vertex.x, vertex.y);
+            });
+
+            // Request another frame after 90ms
+            setTimeout(() => {
+                requestAnimationFrame(render);
+            }, 90);
+        }
+
+        render();
+
+
+        // (Bonus) Implement rotation functionality
+        // This would require additional math and logic
+
+    </script>
+</body>
+
+</html>
