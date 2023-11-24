@@ -135,8 +135,6 @@
                 ctx.lineTo(vertex.x, vertex.y);
             });
             ctx.closePath();
-            //ctx.fillStyle = fillColor;
-            // Set fill to a random color
             const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
             ctx.fillStyle = randomColor;
             ctx.fill();
@@ -161,17 +159,72 @@
             return dx < size * 1.5 && dy < size * Math.sqrt(3) / 2;
         }
 
-        canvas.addEventListener('mousedown', (e) => {
-            const mousePos = getMousePos(canvas, e);
-            if (hoveredVertexIndex !== null) { // Only start dragging if we're actually near a vertex
-                isDragging = true;
-                dragStartPoint = { x: mousePos.x, y: mousePos.y };
+        // Event handling functions
+        function startInteraction(point) {
+            const mousePos = getMousePos(canvas, point);
+            if (hoveredVertexIndex !== null) {
+                isInteracting = true;
+                interactionStartPoint = { x: mousePos.x, y: mousePos.y };
             }
-        });
+        }
 
-        canvas.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
+        function endInteraction() {
+            isInteracting = false;
+        }
+
+        function moveInteraction(point) {
+            const mousePos = getMousePos(canvas, point);
+
+            if (!isInteracting) {
+                checkHover(mousePos);
+            } else if (hoveredVertexIndex !== null) {
+                const deltaX = mousePos.x - interactionStartPoint.x;
+                const deltaY = mousePos.y - interactionStartPoint.y;
+                applyDeltaToVertices(deltaX, deltaY);
+                interactionStartPoint = { x: mousePos.x, y: mousePos.y };
+            }
+
+            //render();
+        }
+
+        function applyDeltaToVertices(deltaX, deltaY) {
+            // Apply the delta to the selected vertex
+            blueHexVertices[hoveredVertexIndex].x += deltaX;
+            blueHexVertices[hoveredVertexIndex].y += deltaY;
+            blueHexDeltas[hoveredVertexIndex].x += deltaX;
+            blueHexDeltas[hoveredVertexIndex].y += deltaY;
+
+            // Apply the same transformation to the adjacent vertices
+            const adjacentIndex1 = (hoveredVertexIndex + 4) % 6; // Previous vertex in the array
+            blueHexVertices[adjacentIndex1].x += deltaX;
+            blueHexVertices[adjacentIndex1].y += deltaY;
+            blueHexDeltas[adjacentIndex1].x += deltaX;
+            blueHexDeltas[adjacentIndex1].y += deltaY;
+
+            const adjacentIndex2 = (hoveredVertexIndex + 2) % 6; // Next vertex in the array
+            blueHexVertices[adjacentIndex2].x += deltaX;
+            blueHexVertices[adjacentIndex2].y += deltaY;
+            blueHexDeltas[adjacentIndex2].x += deltaX;
+            blueHexDeltas[adjacentIndex2].y += deltaY;
+        }
+
+        // Add mouse event listeners
+        canvas.addEventListener('mousedown', (e) => startInteraction(e));
+        canvas.addEventListener('mouseup', endInteraction);
+        canvas.addEventListener('mousemove', (e) => moveInteraction(e));
+
+        // Add touch event listeners
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling when touching the canvas
+            startInteraction(e.touches[0]);
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', endInteraction);
+        canvas.addEventListener('touchcancel', endInteraction);
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent scrolling when touching the canvas
+            moveInteraction(e.touches[0]);
+        }, { passive: false });
 
         // This function will check against all vertices of the central hexagon
         // to see if the mouse is close enough to render the hover circle
@@ -186,49 +239,6 @@
             });
             return isNearAnyVertex;
         }
-
-        canvas.addEventListener('mousemove', (e) => {
-            const mousePos = getMousePos(canvas, e);
-            const blueVertices = getHexagonVerticesFromRowCol(blueHexRow, blueHexCol);
-
-            if (!isDragging) {
-                if (!checkHover(mousePos)) {
-                    hoveredVertexIndex = null; // No vertex is close enough to the mouse
-                }
-            }
-
-
-            if (hoveredVertexIndex !== null && isDragging) {
-                const mousePos = getMousePos(canvas, e);
-                const deltaX = mousePos.x - dragStartPoint.x;
-                const deltaY = mousePos.y - dragStartPoint.y;
-
-                // Apply the delta to the selected vertex
-                blueHexVertices[hoveredVertexIndex].x += deltaX;
-                blueHexVertices[hoveredVertexIndex].y += deltaY;
-                blueHexDeltas[hoveredVertexIndex].x += deltaX;
-                blueHexDeltas[hoveredVertexIndex].y += deltaY;
-
-                // Apply the same transformation to the adjacent vertices
-                const adjacentIndex1 = (hoveredVertexIndex + 4) % 6; // Previous vertex in the array
-                blueHexVertices[adjacentIndex1].x += deltaX;
-                blueHexVertices[adjacentIndex1].y += deltaY;
-                blueHexDeltas[adjacentIndex1].x += deltaX;
-                blueHexDeltas[adjacentIndex1].y += deltaY;
-
-                const adjacentIndex2 = (hoveredVertexIndex + 2) % 6; // Next vertex in the array
-                blueHexVertices[adjacentIndex2].x += deltaX;
-                blueHexVertices[adjacentIndex2].y += deltaY;
-                blueHexDeltas[adjacentIndex2].x += deltaX;
-                blueHexDeltas[adjacentIndex2].y += deltaY;
-
-                // Update the dragStartPoint for the next frame
-                dragStartPoint = { x: mousePos.x, y: mousePos.y };
-
-                // Request a re-render of the canvas
-                //render();
-            }
-        });
 
         function render() {
             // Render the hex grid
